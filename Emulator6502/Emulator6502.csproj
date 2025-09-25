@@ -40,6 +40,7 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AdressUnwritableException.cs" />
     <Compile Include="AdressUnreadableException.cs" />
     <Compile Include="CPU6502.cs" />
     <Compile Include="IMemorySpace6502.cs" />

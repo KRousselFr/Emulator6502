@@ -30,7 +30,12 @@ namespace Emulator6502
         /// </summary>
         /// <param name="address">Adresse-mémoire de l'octet à écrire.</param>
         /// <param name="value">Valeur de l'octet à écrire.</param>
-        void WriteMemory(UInt16 address, Byte value);
+        /// <returns>
+        /// Renvoie <code>true</code> si l'écriture a réussi ;
+        /// renvoie <code>false</code> en cas de problème (par exemple :
+        /// si l'adresse en question n'est pas accessible en écriture).
+        /// </returns>
+        Boolean WriteMemory(UInt16 address, Byte value);
     }
 }
 

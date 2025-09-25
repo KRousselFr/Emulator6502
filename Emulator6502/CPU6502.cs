@@ -14,6 +14,8 @@ namespace Emulator6502
         // messages afffichés
         private const String ERR_UNREADABLE_ADDRESS =
                 "Impossible de lire le contenu de l'adresse ${0:X4} !";
+        private const String ERR_UNWRITABLE_ADDRESS =
+                "Impossible d'écrire la valeur $1:X2 à l'adresse ${0:X4} !";
         private const String ERR_UNKNOWN_OPCODE =
                 "Opcode invalide (${1:X2}) rencontré à l'adresse ${0:X4} !";
 
@@ -126,7 +128,13 @@ namespace Emulator6502
 
         private void WriteMem(ushort addr, byte val)
         {
-            this.memSpace.WriteMemory(addr, val);
+            bool ok = this.memSpace.WriteMemory(addr, val);
+            if (!ok) {
+                throw new AddressUnwritableException(
+                        addr,
+                        String.Format(ERR_UNWRITABLE_ADDRESS,
+                                      addr, val));
+            }
             this.cycles++;
         }
 
