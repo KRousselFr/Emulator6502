@@ -11,7 +11,7 @@ namespace Emulator6502
     {
         /* =========================== CONSTANTES =========================== */
 
-        // messages afffichés
+        // messages affichés
         private const String ERR_UNREADABLE_ADDRESS =
                 "Impossible de lire le contenu de l'adresse ${0:X4} !";
         private const String ERR_UNWRITABLE_ADDRESS =
