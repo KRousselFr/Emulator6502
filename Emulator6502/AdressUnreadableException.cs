@@ -11,15 +11,15 @@ namespace Emulator6502
     {
         /* ========================= CHAMPS PRIVÉS ========================== */
 
-        private readonly ushort addr;
+        private readonly int addr;
 
         /* ========================= CONSTRUCTEURS ========================== */
 
-        public AddressUnreadableException(UInt16 address) : base() {
+        public AddressUnreadableException(int address) : base() {
             this.addr = address;
         }
 
-        public AddressUnreadableException(UInt16 address, string message) : base(message) {
+        public AddressUnreadableException(int address, string message) : base(message) {
             this.addr = address;
         }
 
@@ -31,7 +31,7 @@ namespace Emulator6502
         /// </summary>
         public UInt16 MemoryAddress
         {
-            get { return this.addr; }
+            get { return (ushort)(this.addr); }
         }
 
     }

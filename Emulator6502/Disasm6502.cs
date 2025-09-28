@@ -8,7 +8,7 @@ namespace Emulator6502
     /// Classe désassemblant de le code machine des processeurs
     /// de la famille 65x02.
     /// </summary>
-    class Disasm6502
+    public class Disasm6502
     {
         /* ========================= TYPES IMBRIQUES ======================== */
 
@@ -52,7 +52,7 @@ namespace Emulator6502
         private ProcessorLevel procLevel;
 
         // adresse courante de l'instruction en cours de désassemblage
-        private ushort regPC;
+        private int regPC;
 
 
         /* ========================== CONSTRUCTEUR ========================== */
@@ -90,9 +90,9 @@ namespace Emulator6502
 
         /* ~~~~ accès à l'espace mémoire ~~~~ */
 
-        private byte ReadMem(ushort addr)
+        private byte ReadMem(int addr)
         {
-            byte? memval = this.memSpace.ReadMemory(addr);
+            byte? memval = this.memSpace.ReadMemory((ushort)addr);
             if (!(memval.HasValue)) {
                 throw new AddressUnreadableException(
                         addr,
@@ -102,23 +102,13 @@ namespace Emulator6502
             return memval.Value;
         }
 
-        private void WriteMem(ushort addr, byte val)
-        {
-            bool ok = this.memSpace.WriteMemory(addr, val);
-            if (!ok) {
-                throw new AddressUnwritableException(
-                        addr,
-                        String.Format(ERR_UNWRITABLE_ADDRESS,
-                                      addr, val));
-            }
-        }
-
         /* ~~~~ implantation des modes d'adressage ~~~~ */
 
         /* mode d'adressage immédiat : INSTR #nn  */
         private string AddrModeImmediate()
         {
             byte val = ReadMem(this.regPC);
+            this.regPC++;
             return String.Format("#${0:X2}", val);
         }
 
@@ -231,7 +221,7 @@ namespace Emulator6502
             sbyte dpl = (sbyte)(ReadMem(this.regPC));
             this.regPC++;
             ushort addr = (ushort)(this.regPC + dpl);
-            return String.Format("{0:D}  (>${1:X4})", dpl, addr);
+            return String.Format("{0:+000;-000}  (>${1:X4})", dpl, addr);
         }
 
 
@@ -1462,7 +1452,7 @@ namespace Emulator6502
             for (int n = 0; n < nbOct; n++) {
                 ushort ad = (ushort)(memoryAddress + n);
                 byte b = ReadMem(ad);
-                sbResult.Append(String.Format("{0:X2}", b));
+                sbResult.Append(String.Format("{0:X2} ", b));
             }
             /* aligne le résultat sur colonnes */
             while (sbResult.Length < 16) sbResult.Append(" ");
@@ -1499,7 +1489,8 @@ namespace Emulator6502
             StringBuilder sbResult = new StringBuilder();
             this.regPC = fromAddress;
             for (uint n = 0; n < nbInstr; n++) {
-                string instr = DisassembleInstructionAt(this.regPC);
+                string instr = DisassembleInstructionAt(
+                        (ushort)(this.regPC));
                 sbResult.Append(instr);
             }
             return sbResult.ToString();
@@ -1531,7 +1522,8 @@ namespace Emulator6502
             StringBuilder sbResult = new StringBuilder();
             this.regPC = fromAddress;
             while (this.regPC <= toAddress) {
-                string instr = DisassembleInstructionAt(this.regPC);
+                string instr = DisassembleInstructionAt(
+                        (ushort)(this.regPC));
                 sbResult.Append(instr);
             }
             return sbResult.ToString();
@@ -1571,4 +1563,5 @@ namespace Emulator6502
 
     }
 }
+
 

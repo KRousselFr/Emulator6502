@@ -10,18 +10,18 @@ namespace Emulator6502
     {
         /* ========================= CHAMPS PRIVÉS ========================== */
 
-        private readonly ushort addr;
+        private readonly int addr;
         private readonly byte code;
 
         /* ========================= CONSTRUCTEURS ========================== */
 
-        public UnknownOpcodeException(UInt16 address, Byte opcode) : base()
+        public UnknownOpcodeException(int address, Byte opcode) : base()
         {
             this.addr = address;
             this.code = opcode;
         }
 
-        public UnknownOpcodeException(UInt16 address, byte opcode, string message) : base(message)
+        public UnknownOpcodeException(int address, Byte opcode, string message) : base(message)
         {
             this.addr = address;
             this.code = opcode;
@@ -35,7 +35,7 @@ namespace Emulator6502
         /// </summary>
         public UInt16 MemoryAddress
         {
-            get { return this.addr; }
+            get { return (ushort)(this.addr); }
         }
 
         /// <summary>
