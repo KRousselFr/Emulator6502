@@ -1,15 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 using Microsoft.Win32;
 
@@ -19,20 +18,47 @@ using Emulator6502;
 namespace GUIEmu6502
 {
     /// <summary>
-    /// Logique d'interaction pour MainWindow.xaml
+    /// Code implantant la fenêtre principale de l'interface utilisateur
+    /// de l'émulateur de processeurs de la famille 65x02.
     /// </summary>
     public partial class MainWindow : Window
     {
+        /* ========================= TYPES INTERNES ========================= */
+
+        private delegate void DelegateUpdateUI(bool complete);
+
+
         /* =========================== CONSTANTES =========================== */
 
         // messages affichés
-        const string WARN_TITLE = "Attention !";
-        const string WARN_REINIT_EMULATOR =
+        const String ERR_TITLE = "Erreur !";
+        const String ERR_FMT_INVALID_HEX_VALUE =
+                "{0} n'est pas une valeur hexadécimale correcte" +
+                " sur {1} bits !";
+        const String WARN_TITLE = "Attention !";
+        const String WARN_REINIT_EMULATOR =
                 "Voulez-vous vraiment réinitialiser l'émulateur ?\r\n" +
                 "Tout le travail en cours sera perdu !";
-        const string WARN_QUIT_EMULATOR =
+        const String WARN_QUIT_EMULATOR =
                 "Voulez-vous vraiment quitter l'émulateur ?\r\n" +
                 "Tout le travail en cours sera perdu !";
+        const String OFD_BIN_FILE_TITLE =
+                "Sélectionnez le fichier binaire à charger";
+        const String SFD_BIN_FILE_TITLE =
+                "Sélectionnez le fichier binaire à sauvegarder";
+        const String INFO_TITLE = "Information";
+        const String INFO_FMT_MEMORY_SAVED =
+                "Mémoire sauvegardée dans le fichier '{0}'.";
+
+        // autres chaînes (NE PAS TRADUIRE !)
+        private const string MEM_FILE_DEFAULT_EXT = ".bin";
+        private const string MEM_FILES_FILTER =
+                "Fichiers binaires (*.bin)|*.bin|" +
+                "Fichiers 65xx assemblés (*.65p)|*.65p|" +
+                "Tous les fichiers|*.*";
+
+        // valeurs numériques
+        private const int POS_MNEMO_DISASM_LINE = 18;
 
 
         /* ========================== CHAMPS PRIVÉS ========================= */
@@ -57,6 +83,13 @@ namespace GUIEmu6502
         private StackFormatter6502 stkFmt;
 
 
+        // "délégué" de mise à jour de l'affichage
+        private DelegateUpdateUI uiUpdater;
+
+        // tâche d'exécution du processeur en arrière-plan
+        private BackgroundWorker cpuRunner;
+
+
         /* ========================== CONSTRUCTEUR ========================== */
 
         /// <summary>
@@ -65,6 +98,7 @@ namespace GUIEmu6502
         public MainWindow()
         {
             InitializeComponent();
+            this.uiUpdater = UpdateUI;
         }
 
 
@@ -74,30 +108,48 @@ namespace GUIEmu6502
 
         private static byte HexToByte(string hex)
         {
-            return Convert.ToByte(hex, 16);
+            try {
+                return Convert.ToByte(hex, 16);
+            } catch (Exception) {
+                MessageBox.Show(App.Current.MainWindow,
+                                String.Format(ERR_FMT_INVALID_HEX_VALUE,
+                                              hex, 8),
+                                ERR_TITLE,
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error);
+                return 0xff;
+            }
         }
 
         private static ushort HexToAddr(string hex)
         {
-            return Convert.ToUInt16(hex, 16);
+            try {
+                return Convert.ToUInt16(hex, 16);
+            } catch (Exception) {
+                MessageBox.Show(App.Current.MainWindow,
+                                String.Format(ERR_FMT_INVALID_HEX_VALUE,
+                                              hex, 16),
+                                ERR_TITLE,
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error);
+                return 0xffff;
+            }
         }
 
         /* ~~ Gestion des contrôles ~~ */
 
         private void UpdateRegisterView()
         {
-            this.tbRegA.Text = String.Format("{0:X2}",
-                                             this.processor.RegisterA);
-            this.tbRegX.Text = String.Format("{0:X2}",
-                                             this.processor.RegisterX);
-            this.tbRegY.Text = String.Format("{0:X2}",
-                                             this.processor.RegisterY);
-            this.tbRegS.Text = String.Format("{0:X2}",
-                                             this.processor.RegisterS);
-            this.tbRegPC.Text = String.Format("{0:X4}",
-                                              this.processor.RegisterPC);
-            this.tbRegP.Text = String.Format("{0:X2}",
-                                             this.processor.RegisterP);
+            this.tbRegA.Text = this.processor.RegisterA.ToString("X2");
+            this.tbRegX.Text = this.processor.RegisterX.ToString("X2");
+            this.tbRegY.Text = this.processor.RegisterY.ToString("X2");
+            this.tbRegS.Text = this.processor.RegisterS.ToString("X2");
+            this.tbRegPC.Text = this.processor.RegisterPC.ToString("X4");
+            string nextInstr = this.disasm.DisassembleInstructionAt(
+                    this.processor.RegisterPC);
+            nextInstr = nextInstr.Substring(POS_MNEMO_DISASM_LINE).Trim();
+            this.txtNextInstr.Text = nextInstr;
+            this.tbRegP.Text = this.processor.RegisterP.ToString("X2");
             this.cbFlagN.IsChecked = this.processor.FlagN;
             this.cbFlagV.IsChecked = this.processor.FlagV;
             this.cbFlagRsvd.IsChecked = true;
@@ -106,6 +158,7 @@ namespace GUIEmu6502
             this.cbFlagI.IsChecked = this.processor.FlagI;
             this.cbFlagZ.IsChecked = this.processor.FlagZ;
             this.cbFlagC.IsChecked = this.processor.FlagC;
+            this.tbCycles.Text = this.processor.ElapsedCycles.ToString();
         }
 
         private void UpdateStackView()
@@ -141,6 +194,17 @@ namespace GUIEmu6502
             }
         }
 
+        private void UpdateUI(bool complete)
+        {
+            UpdateRegisterView();
+            UpdateStackView();
+            if (complete) {
+                UpdateMemoryView();
+                UpdateDisasmView();
+            }
+        }
+
+
         /* ~~ Gestionnaires d'évènements ~~ */
 
         /* gère l'ouverture de la fenêtre = lancement du programme */
@@ -161,6 +225,13 @@ namespace GUIEmu6502
             this.tbDisasmView.Text = String.Empty;
             this.tbMemoryView.Text = String.Empty;
             this.tbStackView.Text = String.Empty;
+
+            /* tâche de fond pour l'exécution */
+            this.cpuRunner = new BackgroundWorker {
+                WorkerSupportsCancellation = true
+            };
+            this.cpuRunner.DoWork += CpuRunner_DoWork;
+            this.cpuRunner.RunWorkerCompleted += CpuRunner_RunWorkerCompleted;
 
             /* prêt à traiter les évènements */
             guiDone = true;
@@ -289,7 +360,8 @@ namespace GUIEmu6502
         }
 
 
-        private void MenuFileNew_Click(object sender, RoutedEventArgs e)
+        private void CommandNew_Executed(object sender,
+                                         ExecutedRoutedEventArgs e)
         {
             MessageBoxResult res = MessageBox.Show(
                     this,
@@ -302,68 +374,251 @@ namespace GUIEmu6502
             /* réinitialise l'espace mémoire et le CPU */
             this.memSpace.Clear();
             this.processor.Reset();
+            /* MàJ complète de l'interface */
+            Application.Current.Dispatcher.BeginInvoke(
+                    DispatcherPriority.Render,
+                    uiUpdater,
+                    true);
         }
 
-        private void MenuFileOpen_Click(object sender, RoutedEventArgs e)
+        private void CommandOpen_Executed(object sender,
+                                          ExecutedRoutedEventArgs e)
         {
-            OpenFileDialog ofd = new OpenFileDialog();
-            ofd.AddExtension = true;
-            ofd.CheckFileExists = true;
-            ofd.CheckPathExists = true;
-            ofd.DefaultExt = "bin";
-            ofd.Filter = "Fichiers binaires|*.bin|Tous les fichiers|*.*";
-            ofd.Multiselect = false;
-            ofd.Title = "Sélectionnez le fichier binaire à charger";
-            ofd.ValidateNames = true;
+            OpenFileDialog ofd = new OpenFileDialog {
+                AddExtension = true,
+                CheckFileExists = true,
+                CheckPathExists = true,
+                DefaultExt = MEM_FILE_DEFAULT_EXT,
+                Filter = MEM_FILES_FILTER,
+                Multiselect = false,
+                Title = OFD_BIN_FILE_TITLE,
+                ValidateNames = true
+            };
             if (ofd.ShowDialog() != true) return;
             string srcFilePath = ofd.FileName;
             this.memSpace.LoadFromFile(srcFilePath);
             /* réinit le processeur */
             this.processor.Reset();
-            /* MàJ de l'interface */
-            UpdateRegisterView();
-            UpdateStackView();
-            UpdateMemoryView();
-            UpdateDisasmView();
+            /* MàJ complète de l'interface */
+            Application.Current.Dispatcher.BeginInvoke(
+                    DispatcherPriority.Render,
+                    uiUpdater,
+                    true);
         }
 
-        private void MenuFileSave_Click(object sender, RoutedEventArgs e)
+        private void CommandSaveAs_Executed(object sender,
+                                            ExecutedRoutedEventArgs e)
         {
-            SaveFileDialog sfd = new SaveFileDialog();
-            sfd.AddExtension = true;
-            sfd.CheckFileExists = false;
-            sfd.CheckPathExists = true;
-            sfd.DefaultExt = "bin";
-            sfd.Filter = "Fichiers binaires|*.bin|Tous les fichiers|*.*";
-            sfd.Title = "Sélectionnez le fichier binaire à sauvegarder";
-            sfd.ValidateNames = true;
+            SaveFileDialog sfd = new SaveFileDialog {
+                AddExtension = true,
+                CheckFileExists = true,
+                CheckPathExists = true,
+                DefaultExt = MEM_FILE_DEFAULT_EXT,
+                Filter = MEM_FILES_FILTER,
+                Title = SFD_BIN_FILE_TITLE,
+                ValidateNames = true
+            };
             if (sfd.ShowDialog() != true) return;
             string destFilePath = sfd.FileName;
             this.memSpace.SaveToFile(destFilePath);
+            MessageBox.Show(this,
+                            String.Format(INFO_FMT_MEMORY_SAVED,
+                                          destFilePath),
+                            INFO_TITLE,
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
         }
 
-        private void MenuFileQuit_Click(object sender, RoutedEventArgs e)
+        private void CommandClose_Executed(object sender,
+                                           ExecutedRoutedEventArgs e)
         {
             MessageBoxResult res = MessageBox.Show(
                     this,
                     WARN_QUIT_EMULATOR,
                     WARN_TITLE,
                     MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning,
+                    MessageBoxImage.Question,
                     MessageBoxResult.No);
             if (res != MessageBoxResult.Yes) return;
             /* quitte le programme en fermant cette fenêtre */
             Close();
         }
 
-        private void MenuSimuStep_Click(object sender, RoutedEventArgs e)
+        private void CommandResetCPU_CanExecute(object sender,
+                                                CanExecuteRoutedEventArgs e)
         {
-            this.processor.Step();
-            /* MàJ de l'interface */
-            UpdateRegisterView();
-            UpdateStackView();
-            UpdateMemoryView();
-            // UpdateDisasmView();
+            /* commande disponible HORS exécution en tâche de fond */
+            e.CanExecute = !(this.cpuRunner.IsBusy);
+        }
+
+        private void CommandResetCPU_Executed(object sender,
+                                              ExecutedRoutedEventArgs e)
+        {
+            this.processor.Reset();
+            /* MàJ complète de l'interface */
+            Application.Current.Dispatcher.BeginInvoke(
+                    DispatcherPriority.Render,
+                    uiUpdater,
+                    true);
+        }
+
+        private void CommandStepCPU_CanExecute(object sender,
+                                               CanExecuteRoutedEventArgs e)
+        {
+            /* commande disponible HORS exécution en tâche de fond */
+            e.CanExecute = !(this.cpuRunner.IsBusy);
+        }
+
+        private void CommandStepCPU_Executed(object sender,
+                                             ExecutedRoutedEventArgs e)
+        {
+            try {
+                this.processor.Step();
+            } catch (Exception exc) {
+                MessageBox.Show(this,
+                                exc.Message,
+                                exc.GetType().Name,
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error);
+            }
+            /* MàJ rapide de l'interface */
+            Application.Current.Dispatcher.BeginInvoke(
+                    DispatcherPriority.Render,
+                    uiUpdater,
+                    true);
+        }
+
+        private void CommandRunCycles_CanExecute(object sender,
+                                                 CanExecuteRoutedEventArgs e)
+        {
+            /* commande disponible HORS exécution en tâche de fond */
+            e.CanExecute = !(this.cpuRunner.IsBusy);
+        }
+
+        private void CommandRunCycles_Executed(object sender,
+                                               ExecutedRoutedEventArgs e)
+        {
+            MessageBox.Show(this,
+                            "A implanter !",
+                            null,
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+            // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        }
+
+        private void CommandRunCPU_CanExecute(object sender,
+                                              CanExecuteRoutedEventArgs e)
+        {
+            /* commande disponible HORS exécution en tâche de fond */
+            e.CanExecute = !(this.cpuRunner.IsBusy);
+        }
+
+        private void CommandRunCPU_Executed(object sender,
+                                            ExecutedRoutedEventArgs e)
+        {
+            /* lance l'exécution en tâche de fond */
+            this.cpuRunner.RunWorkerAsync();
+        }
+
+        private void CommandStopCPU_CanExecute(object sender,
+                                               CanExecuteRoutedEventArgs e)
+        {
+            /* commande disponible quand l'exécution est en cours */
+            e.CanExecute = (this.cpuRunner.IsBusy);
+        }
+
+        private void CommandStopCPU_Executed(object sender,
+                                             ExecutedRoutedEventArgs e)
+        {
+            /* demande l'arrêt de l'exécution en tâche de fond */
+            this.cpuRunner.CancelAsync();
+        }
+
+        private void CommandBkpts_CanExecute(object sender,
+                                             CanExecuteRoutedEventArgs e)
+        {
+            e.CanExecute = true;
+            // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        }
+
+        private void CommandBkpts_Executed(object sender,
+                                           ExecutedRoutedEventArgs e)
+        {
+            MessageBox.Show(this,
+                            "A implanter !",
+                            null,
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+            // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        }
+
+        private void CommandTraceOn_CanExecute(object sender,
+                                               CanExecuteRoutedEventArgs e)
+        {
+            /* commande disponible HORS exécution en tâche de fond */
+            e.CanExecute = !(this.cpuRunner.IsBusy);
+        }
+
+        private void CommandTraceOn_Executed(object sender,
+                                             ExecutedRoutedEventArgs e)
+        {
+            MessageBox.Show(this,
+                            "A implanter !",
+                            null,
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+            // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        }
+
+        private void CommandTraceOff_CanExecute(object sender,
+                                                CanExecuteRoutedEventArgs e)
+        {
+            /* commande disponible HORS exécution en tâche de fond */
+            e.CanExecute = !(this.cpuRunner.IsBusy);
+        }
+
+        private void CommandTraceOff_Executed(object sender,
+                                              ExecutedRoutedEventArgs e)
+        {
+            MessageBox.Show(this,
+                            "A implanter !",
+                            null,
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+            // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        }
+
+        /* ~~ Exécution du processeur en tâche de fond ~~ */
+
+        private void CpuRunner_DoWork(object sender,
+                                      DoWorkEventArgs e)
+        {
+            while (!(this.cpuRunner.CancellationPending)) {
+                this.processor.Step();
+                /* MàJ rapide de l'interface */
+                Application.Current.Dispatcher.BeginInvoke(
+                        DispatcherPriority.Input,
+                        uiUpdater,
+                        false);
+                Thread.Sleep(20);
+            }
+        }
+
+        private void CpuRunner_RunWorkerCompleted(object sender,
+                                                  RunWorkerCompletedEventArgs e)
+        {
+            if (e.Error != null) {
+                MessageBox.Show(this,
+                                e.Error.Message,
+                                e.Error.GetType().Name,
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error);
+            }
+            /* MàJ complète de l'interface */
+            Application.Current.Dispatcher.BeginInvoke(
+                    DispatcherPriority.Render,
+                    uiUpdater,
+                    true);
         }
 
 

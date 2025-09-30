@@ -243,7 +243,7 @@ namespace Emulator6502
             this.regPC = memoryAddress;
 
             /* écrit d'abord l'adresse traitée */
-            sbResult.Append(String.Format("{0:X4}  ", this.regPC));
+            sbResult.Append(String.Format("{0:X4} : ", this.regPC));
 
             /* analyse l'opcode trouvé à cette adresse */
             byte opcode = ReadMem(this.regPC);
@@ -1456,6 +1456,7 @@ namespace Emulator6502
             }
             /* aligne le résultat sur colonnes */
             while (sbResult.Length < 16) sbResult.Append(" ");
+            sbResult.Append(": ");
 
             /* enfin, liste l'instruction désassemblée */
             sbResult.Append(mnemo);

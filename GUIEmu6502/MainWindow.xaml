@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:GUIEmu6502"
+        xmlns:commands="clr-namespace:GUIEmu6502.Commands"
         mc:Ignorable="d"
         Title="Emulator6502"
         FontFamily="Arial"
@@ -37,6 +38,7 @@
             <Setter Property="AcceptsReturn" Value="True" />
             <Setter Property="FontFamily" Value="Consolas" />
             <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="IsReadOnly" Value="True" />
             <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
             <Setter Property="ScrollViewer.HorizontalScrollBarVisibility"
                     Value="Visible" />
@@ -48,12 +50,13 @@
         <Style x:Key="TBLabel" TargetType="TextBlock">
             <Setter Property="Margin" Value="5" />
             <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
             <Setter Property="FontSize" Value="16" />
             <Setter Property="FontWeight" Value="Bold" />
         </Style>
         <Style x:Key="TBRegister" TargetType="TextBox">
             <Setter Property="Margin" Value="5" />
-            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
             <Setter Property="TextAlignment" Value="Center" />
             <Setter Property="FontFamily" Value="Consolas" />
             <Setter Property="FontSize" Value="16" />
@@ -76,6 +79,65 @@
         </Style>
     </Window.Resources>
 
+    <Window.CommandBindings>
+        <!-- Commandes du menu et de la barre d'outils -->
+        <CommandBinding Command="New"
+                        Executed="CommandNew_Executed" />
+        <CommandBinding Command="Open"
+                        Executed="CommandOpen_Executed" />
+        <CommandBinding Command="SaveAs"
+                        Executed="CommandSaveAs_Executed" />
+        <CommandBinding Command="Close"
+                        Executed="CommandClose_Executed" />
+        <CommandBinding Command="{x:Static commands:SpecificCommands.ResetCPUCommand}"
+                        CanExecute="CommandResetCPU_CanExecute"
+                        Executed="CommandResetCPU_Executed" />
+        <CommandBinding Command="{x:Static commands:SpecificCommands.StepCPUCommand}"
+                        CanExecute="CommandStepCPU_CanExecute"
+                        Executed="CommandStepCPU_Executed" />
+        <CommandBinding Command="{x:Static commands:SpecificCommands.RunCyclesCommand}"
+                        CanExecute="CommandRunCycles_CanExecute"
+                        Executed="CommandRunCycles_Executed" />
+        <CommandBinding Command="{x:Static commands:SpecificCommands.RunCPUCommand}"
+                        CanExecute="CommandRunCPU_CanExecute"
+                        Executed="CommandRunCPU_Executed" />
+        <CommandBinding Command="{x:Static commands:SpecificCommands.StopCPUCommand}"
+                        CanExecute="CommandStopCPU_CanExecute"
+                        Executed="CommandStopCPU_Executed" />
+        <CommandBinding Command="{x:Static commands:SpecificCommands.BreakpointsCommand}"
+                        Executed="CommandBkpts_Executed" />
+        <CommandBinding Command="{x:Static commands:SpecificCommands.TraceOnCommand}"
+                        CanExecute="CommandTraceOn_CanExecute"
+                        Executed="CommandTraceOn_Executed" />
+        <CommandBinding Command="{x:Static commands:SpecificCommands.TraceOffCommand}"
+                        CanExecute="CommandTraceOff_CanExecute"
+                        Executed="CommandTraceOff_Executed" />
+    </Window.CommandBindings>
+
+    <Window.InputBindings>
+        <!-- Raccourcis clavier -->
+        <KeyBinding Key="N" Modifiers="Ctrl" Command="New" />
+        <KeyBinding Key="O" Modifiers="Ctrl" Command="Open" />
+        <KeyBinding Key="S" Modifiers="Ctrl" Command="SaveAs" />
+        <KeyBinding Key="Q" Modifiers="Ctrl" Command="Close" />
+        <KeyBinding Key="R" Modifiers="Ctrl"
+                    Command="{x:Static commands:SpecificCommands.ResetCPUCommand}" />
+        <KeyBinding Key="F10"
+                    Command="{x:Static commands:SpecificCommands.StepCPUCommand}" />
+        <KeyBinding Key="F5" Modifiers="Ctrl"
+                    Command="{x:Static commands:SpecificCommands.RunCyclesCommand}" />
+        <KeyBinding Key="F5"
+                    Command="{x:Static commands:SpecificCommands.RunCPUCommand}" />
+        <KeyBinding Key="F5" Modifiers="Shift"
+                    Command="{x:Static commands:SpecificCommands.StopCPUCommand}" />
+        <KeyBinding Key="B" Modifiers="Ctrl"
+                    Command="{x:Static commands:SpecificCommands.BreakpointsCommand}" />
+        <KeyBinding Key="T" Modifiers="Ctrl"
+                    Command="{x:Static commands:SpecificCommands.TraceOnCommand}" />
+        <KeyBinding Key="T" Modifiers="Ctrl+Shift"
+                    Command="{x:Static commands:SpecificCommands.TraceOffCommand}" />
+    </Window.InputBindings>
+    
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
@@ -94,23 +156,36 @@
               Grid.Row="0">
             <MenuItem Header="_Fichier">
                 <MenuItem Header="_Nouveau"
-                          Click="MenuFileNew_Click" />
+                          Command="New" />
                 <Separator />
                 <MenuItem Header="_Ouvrir..."
-                          Click="MenuFileOpen_Click" />
+                          Command="Open" />
                 <MenuItem Header="_Sauvegarder..."
-                          Click="MenuFileSave_Click" />
+                          Command="SaveAs" />
                 <Separator />
                 <MenuItem Header="_Quitter"
-                          Click="MenuFileQuit_Click" />
+                          Command="Close" />
             </MenuItem>
             <MenuItem Header="_Simulation">
-                <MenuItem Header="Exécuter _une instruction"
-                          Click="MenuSimuStep_Click" />
-                <MenuItem Header="Exécuter n cycles..." />
-                <MenuItem Header="E_xécuter" />
+                <MenuItem Header="Réinit. processeur"
+                          Command="{x:Static commands:SpecificCommands.ResetCPUCommand}" />
                 <Separator />
-                <MenuItem Header="_Points d'arrêt..." />
+                <MenuItem Header="Exécuter _une instruction"
+                          Command="{x:Static commands:SpecificCommands.StepCPUCommand}" />
+                <MenuItem Header="Exécuter n cycles..."
+                          Command="{x:Static commands:SpecificCommands.RunCyclesCommand}" />
+                <MenuItem Header="E_xécuter"
+                          Command="{x:Static commands:SpecificCommands.RunCPUCommand}" />
+                <MenuItem Header="A_rrêter"
+                          Command="{x:Static commands:SpecificCommands.StopCPUCommand}" />
+                <Separator />
+                <MenuItem Header="_Points d'arrêt..."
+                          Command="{x:Static commands:SpecificCommands.BreakpointsCommand}" />
+                <Separator />
+                <MenuItem Header="Activer la _trace..."
+                          Command="{x:Static commands:SpecificCommands.TraceOnCommand}" />
+                <MenuItem Header="Désactiver la _trace"
+                          Command="{x:Static commands:SpecificCommands.TraceOffCommand}" />
             </MenuItem>
         </Menu>
         
@@ -139,7 +214,7 @@
                 </StackPanel>
                 <TextBox Name="tbDisasmView"
                          Style="{StaticResource TBDisasm}">
-                    0000 : 00      BRK
+                    0000 : 00        BRK
                 </TextBox>
             </DockPanel>
         </GroupBox>
@@ -187,13 +262,18 @@
                   Header="Registres"
                   Style="{StaticResource GBInterface}"
                   Height="auto"
+                  Width="184"
                   VerticalAlignment="Top">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="auto" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="auto" />
+                    <RowDefinition Height="auto" />
+                    <RowDefinition Height="auto" />
+                    <RowDefinition Height="auto" />
                     <RowDefinition Height="auto" />
                     <RowDefinition Height="auto" />
                     <RowDefinition Height="auto" />
@@ -252,24 +332,31 @@
                          Style="{StaticResource TBAddress}"
                          TextChanged="TbRegPC_TextChanged"
                          Text="0000" />
-                <TextBlock Grid.Column="0"
+                <TextBlock Grid.Column="0" Grid.ColumnSpan="2"
                            Grid.Row="5"
+                           Name="txtNextInstr"
+                           FontFamily="Consolas"
+                           FontSize="15"
+                           HorizontalAlignment="Right"
+                           Text="BRK" />
+                <TextBlock Grid.Column="0"
+                           Grid.Row="6"
                            Style="{StaticResource TBLabel}"
                            Text="P" />
                 <TextBox Grid.Column="1"
-                         Grid.Row="5"
+                         Grid.Row="6"
                          Name="tbRegP"
                          Style="{StaticResource TBByteValue}"
                          IsReadOnly="True"
                          Background="LightGray"
                          Text="20" />
-                <Grid Grid.Row="6"
-                      Grid.ColumnSpan="2">
+                <Grid Grid.Row="7"
+                      Grid.Column="0" Grid.ColumnSpan="2">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="auto" />
-                        <ColumnDefinition Width="auto" />
-                        <ColumnDefinition Width="auto" />
-                        <ColumnDefinition Width="auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="auto" />
@@ -333,6 +420,20 @@
                         C
                     </CheckBox>
                 </Grid>
+                <TextBlock Grid.Column="0" Grid.ColumnSpan="2"
+                           Grid.Row="8"
+                           Style="{StaticResource TBLabel}"
+                           Margin="5,15,5,0"
+                           VerticalAlignment="Bottom"
+                           Text="Cycles :" />
+                <TextBox Grid.Column="0" Grid.ColumnSpan="2"
+                         Grid.Row="9"
+                         Name="tbCycles"
+                         IsReadOnly="True"
+                         HorizontalAlignment="Stretch"
+                         HorizontalContentAlignment="Right"
+                         Background="LightGray"
+                         Text="0"/>
             </Grid>
         </GroupBox>
 
@@ -353,4 +454,5 @@
 
     </Grid>
 </Window>
+
 

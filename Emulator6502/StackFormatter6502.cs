@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Text;
 
-
 namespace Emulator6502
 {
     /// <summary>
@@ -74,7 +73,8 @@ namespace Emulator6502
             StringBuilder sbResult = new StringBuilder();
 
             /* affiche les valeurs dans l'ordre d'empilage */
-            for (ushort addr = 0x01ff; addr > regSvalue; addr--) {
+            ushort sp = (ushort)(0x0100 + regSvalue);
+            for (ushort addr = 0x01ff; addr > sp; addr--) {
                 byte val = ReadMem(addr);
                 sbResult.Append(String.Format("{0:X4} : {1:X2}\r\n",
                                 addr, val));

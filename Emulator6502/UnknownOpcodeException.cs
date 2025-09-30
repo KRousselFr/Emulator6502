@@ -6,7 +6,7 @@ namespace Emulator6502
     /// <summary>
     /// Exception lancée lorsqu'un opcode invalide est rencontré à l'exécution.
     /// </summary>
-    class UnknownOpcodeException : Exception
+    public class UnknownOpcodeException : Exception
     {
         /* ========================= CHAMPS PRIVÉS ========================== */
 

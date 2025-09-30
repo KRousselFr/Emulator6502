@@ -151,7 +151,9 @@ namespace Emulator6502
         /* mode d'adressage immédiat : INSTR #nn  */
         private byte AddrModeImmediateValue()
         {
-            return ReadMem(this.regPC);
+            byte val = ReadMem(this.regPC);
+            this.regPC++;
+            return val;
         }
 
         /* mode d'adressage absolu : INSTR $xxxx  */
@@ -160,6 +162,7 @@ namespace Emulator6502
             byte lo = ReadMem(this.regPC);
             this.regPC++;
             byte hi = ReadMem(this.regPC);
+            this.regPC++;
             ushort addr = MakeWord(hi, lo);
             return addr;
         }
@@ -174,6 +177,7 @@ namespace Emulator6502
             byte lo = ReadMem(this.regPC);
             this.regPC++;
             byte hi = ReadMem(this.regPC);
+            this.regPC++;
             ushort addr = MakeWord(hi, lo);
             ushort addr2 = (ushort)(addr + this.regX);
             if (HiByte(addr2) != HiByte(addr)) {
@@ -192,6 +196,7 @@ namespace Emulator6502
             byte lo = ReadMem(this.regPC);
             this.regPC++;
             byte hi = ReadMem(this.regPC);
+            this.regPC++;
             ushort addr = MakeWord(hi, lo);
             ushort addr2 = (ushort)(addr + this.regY);
             if (HiByte(addr2) != HiByte(addr)) {
@@ -210,6 +215,7 @@ namespace Emulator6502
             byte lo = ReadMem(this.regPC);
             this.regPC++;
             byte hi = ReadMem(this.regPC);
+            this.regPC++;
             ushort addr = MakeWord(hi, lo);
             lo = ReadMem(addr);
             if (LoByte(addr) == 0xff) addr -= 0x0100; // BUG du 6502 d'origine !
@@ -227,6 +233,7 @@ namespace Emulator6502
         private ushort AddrModeZeroPageAddress()
         {
             byte lo = ReadMem(this.regPC);
+            this.regPC++;
             return MakeWord(0x00, lo);
         }
         private byte AddrModeZeroPageValue()
@@ -238,6 +245,7 @@ namespace Emulator6502
         private ushort AddrModeZeroPageIndexedXAddress()
         {
             byte lo = ReadMem(this.regPC);
+            this.regPC++;
             lo += this.regX;
             ushort addr = MakeWord(0x00, lo);
             return addr;
@@ -251,6 +259,7 @@ namespace Emulator6502
         private ushort AddrModeZeroPageIndexedYAddress()
         {
             byte lo = ReadMem(this.regPC);
+            this.regPC++;
             lo += this.regY;
             ushort addr = MakeWord(0x00, lo);
             return addr;
@@ -264,6 +273,7 @@ namespace Emulator6502
         private ushort AddrModeZeroPageIndexedXIndirectAddress()
         {
             byte lo = ReadMem(this.regPC);
+            this.regPC++;
             lo += this.regX;
             ushort indAddr = MakeWord(0x00, lo);
             lo = ReadMem(indAddr);
@@ -282,6 +292,7 @@ namespace Emulator6502
         private ushort AddrModeZeroPageIndirectIndexedYAddress()
         {
             byte lo = ReadMem(this.regPC);
+            this.regPC++;
             ushort indAddr = MakeWord(0x00, lo);
             lo = ReadMem(indAddr);
             indAddr++;
@@ -859,7 +870,7 @@ namespace Emulator6502
         public void Reset()
         {
             // initialisation interne des circuits
-            this.cycles += 5;
+            this.cycles = 5;
             // désactive toute interruption masquable
             this.flagI = true;
             // lecture du vecteur RESET
@@ -1837,5 +1848,4 @@ namespace Emulator6502
 
     }
 }
-
 
