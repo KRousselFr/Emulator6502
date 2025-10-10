@@ -49,13 +49,19 @@ namespace GUIEmu6502
         const String INFO_TITLE = "Information";
         const String INFO_FMT_MEMORY_SAVED =
                 "Mémoire sauvegardée dans le fichier '{0}'.";
+        const String SFD_TRACE_FILE_TITLE =
+                "Sélectionnez le fichier de traçage à sauvegarder";
 
         // autres chaînes (NE PAS TRADUIRE !)
         private const string MEM_FILE_DEFAULT_EXT = ".bin";
         private const string MEM_FILES_FILTER =
                 "Fichiers binaires (*.bin)|*.bin|" +
                 "Fichiers 65xx assemblés (*.65p)|*.65p|" +
-                "Tous les fichiers|*.*";
+                "Tous les fichiers (*.*)|*.*";
+        private const string TRACE_FILE_DEFAULT_EXT = ".txt";
+        private const string TRACE_FILES_FILTER =
+                "Fichier texte (*.txt)|*.txt|" +
+                "Tous les fichiers (*.*)|*.*";
 
         // valeurs numériques
         private const int POS_MNEMO_DISASM_LINE = 18;
@@ -72,6 +78,9 @@ namespace GUIEmu6502
         // espace-mémoire attaché au processeur
         // (défini une fois pour toutes à la construction)
         private BasicMemorySpace6502 memSpace;
+
+        // points d'arrêt (pour le déboguage)
+        private List<DebuggerTrap6502> debugTraps;
 
         // outil de désassemblage
         private Disasm6502 disasm;
@@ -98,7 +107,19 @@ namespace GUIEmu6502
         public MainWindow()
         {
             InitializeComponent();
-            this.uiUpdater = UpdateUI;
+            /* créé l'espace-mémoire émulé */
+            this.memSpace = new BasicMemorySpace6502();
+            /* créé le processeur émulé */
+            this.processor = new CPU6502(this.memSpace);
+            this.processor.Reset();
+
+            /* outils / utilitaires */
+            this.disasm = new Disasm6502(this.memSpace);
+            this.memFmt = new MemoryFormatter_8bit(this.memSpace);
+            this.stkFmt = new StackFormatter6502(this.memSpace);
+
+            /* liste des points d'arrêt */
+            this.debugTraps = new List<DebuggerTrap6502>();
         }
 
 
@@ -136,6 +157,60 @@ namespace GUIEmu6502
             }
         }
 
+
+        private bool CheckForTrap()
+        {
+            foreach (DebuggerTrap6502 dt in this.debugTraps) {
+                if (!(dt.Enabled)) continue;
+                switch (dt.TrapKind) {
+                    case DebuggerTrapKind6502.Breakpoint:
+                        if (this.processor.RegisterPC == dt.ReferenceValue)
+                            return true;
+                        break;
+                    case DebuggerTrapKind6502.SPunderflow:
+                        // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                        break;
+                    case DebuggerTrapKind6502.Aequals:
+                        if (this.processor.RegisterA == dt.ReferenceValue)
+                            return true;
+                        break;
+                    case DebuggerTrapKind6502.AlessThan:
+                        if (this.processor.RegisterA < dt.ReferenceValue)
+                            return true;
+                        break;
+                    case DebuggerTrapKind6502.AmoreThan:
+                        if (this.processor.RegisterA > dt.ReferenceValue)
+                            return true;
+                        break;
+                    case DebuggerTrapKind6502.Xequals:
+                        if (this.processor.RegisterX == dt.ReferenceValue)
+                            return true;
+                        break;
+                    case DebuggerTrapKind6502.XlessThan:
+                        if (this.processor.RegisterX < dt.ReferenceValue)
+                            return true;
+                        break;
+                    case DebuggerTrapKind6502.XmoreThan:
+                        if (this.processor.RegisterX > dt.ReferenceValue)
+                            return true;
+                        break;
+                    case DebuggerTrapKind6502.Yequals:
+                        if (this.processor.RegisterY == dt.ReferenceValue)
+                            return true;
+                        break;
+                    case DebuggerTrapKind6502.YlessThan:
+                        if (this.processor.RegisterY < dt.ReferenceValue)
+                            return true;
+                        break;
+                    case DebuggerTrapKind6502.YmoreThan:
+                        if (this.processor.RegisterY > dt.ReferenceValue)
+                            return true;
+                        break;
+                }
+            }
+            return false;
+        }
+
         /* ~~ Gestion des contrôles ~~ */
 
         private void UpdateRegisterView()
@@ -163,9 +238,9 @@ namespace GUIEmu6502
 
         private void UpdateStackView()
         {
-            string stackView =
+            string stackContent =
                     this.stkFmt.ListStackValues(this.processor.RegisterS);
-            this.tbStackView.Text = stackView;
+            this.tbStackView.Text = stackContent;
         }
 
         private void UpdateMemoryView()
@@ -174,8 +249,8 @@ namespace GUIEmu6502
             try {
                 ushort from = HexToAddr(this.tbMemoryFrom.Text);
                 ushort to = HexToAddr(this.tbMemoryTo.Text);
-                string memView = this.memFmt.ListMemoryValues(from, to);
-                this.tbMemoryView.Text = memView;
+                string memContent = this.memFmt.ListMemoryValues(from, to);
+                this.tbMemoryView.Text = memContent;
             } finally {
                 this.Cursor = Cursors.Arrow;
             }
@@ -210,17 +285,6 @@ namespace GUIEmu6502
         /* gère l'ouverture de la fenêtre = lancement du programme */
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            /* créé l'espace-mémoire émulé */
-            this.memSpace = new BasicMemorySpace6502();
-            /* créé le processeur émulé */
-            this.processor = new CPU6502(this.memSpace);
-            this.processor.Reset();
-
-            /* outils / utilitaires */
-            this.disasm = new Disasm6502(this.memSpace);
-            this.memFmt = new MemoryFormatter_8bit(this.memSpace);
-            this.stkFmt = new StackFormatter6502(this.memSpace);
-
             /* initialise les contrôles */
             this.tbDisasmView.Text = String.Empty;
             this.tbMemoryView.Text = String.Empty;
@@ -233,8 +297,11 @@ namespace GUIEmu6502
             this.cpuRunner.DoWork += CpuRunner_DoWork;
             this.cpuRunner.RunWorkerCompleted += CpuRunner_RunWorkerCompleted;
 
+            /* "délégué" pour la mise à jour de l'interface */
+            this.uiUpdater = UpdateUI;
+
             /* prêt à traiter les évènements */
-            guiDone = true;
+            this.guiDone = true;
 
             /* met à jour le contenu des fenêtres */
             UpdateRegisterView();
@@ -247,7 +314,7 @@ namespace GUIEmu6502
         private void TbDisasmLimits_TextChanged(object sender,
                                                 TextChangedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* régénère le désassemblage */
             UpdateDisasmView();
         }
@@ -255,7 +322,7 @@ namespace GUIEmu6502
         private void TbMemoryLimits_TextChanged(object sender,
                                                 TextChangedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* régénère la vue de la mémoire */
             UpdateMemoryView();
         }
@@ -263,7 +330,7 @@ namespace GUIEmu6502
 
         private void TbRegA_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du registre A (accumulateur) */
             this.processor.RegisterA = HexToByte(this.tbRegA.Text);
             UpdateRegisterView();
@@ -271,7 +338,7 @@ namespace GUIEmu6502
 
         private void TbRegX_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du registre X */
             this.processor.RegisterX = HexToByte(this.tbRegX.Text);
             UpdateRegisterView();
@@ -279,7 +346,7 @@ namespace GUIEmu6502
 
         private void TbRegY_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du registre Y */
             this.processor.RegisterY = HexToByte(this.tbRegY.Text);
             UpdateRegisterView();
@@ -287,7 +354,7 @@ namespace GUIEmu6502
 
         private void TbRegS_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du registre S (pointeur de pile) */
             this.processor.RegisterS = HexToByte(this.tbRegS.Text);
             UpdateRegisterView();
@@ -297,7 +364,7 @@ namespace GUIEmu6502
 
         private void TbRegPC_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du registre A (accumulateur) */
             this.processor.RegisterPC = HexToAddr(this.tbRegPC.Text);
             UpdateRegisterView();
@@ -305,7 +372,7 @@ namespace GUIEmu6502
 
         private void CbFlagN_Checked(object sender, RoutedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du flag N (Négatif) */
             this.processor.FlagN = this.cbFlagN.IsChecked.Value;
             UpdateRegisterView();
@@ -313,7 +380,7 @@ namespace GUIEmu6502
 
         private void CbFlagV_Checked(object sender, RoutedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du flag V ("oVerflow") */
             this.processor.FlagV = this.cbFlagV.IsChecked.Value;
             UpdateRegisterView();
@@ -321,7 +388,7 @@ namespace GUIEmu6502
 
         private void CbFlagB_Checked(object sender, RoutedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du flag B ("Break") */
             this.processor.FlagB = this.cbFlagB.IsChecked.Value;
             UpdateRegisterView();
@@ -329,7 +396,7 @@ namespace GUIEmu6502
 
         private void CbFlagD_Checked(object sender, RoutedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du flag D (Décimal) */
             this.processor.FlagD = this.cbFlagD.IsChecked.Value;
             UpdateRegisterView();
@@ -337,7 +404,7 @@ namespace GUIEmu6502
 
         private void CbFlagI_Checked(object sender, RoutedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du flag I (Interruptions masquées) */
             this.processor.FlagI = this.cbFlagI.IsChecked.Value;
             UpdateRegisterView();
@@ -345,7 +412,7 @@ namespace GUIEmu6502
 
         private void CbFlagZ_Checked(object sender, RoutedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du flag Z (Zéro) */
             this.processor.FlagZ = this.cbFlagZ.IsChecked.Value;
             UpdateRegisterView();
@@ -353,7 +420,7 @@ namespace GUIEmu6502
 
         private void CbFlagC_Checked(object sender, RoutedEventArgs e)
         {
-            if (!guiDone) return;
+            if (!(this.guiDone)) return;
             /* change la valeur du flag C ("Carry") */
             this.processor.FlagC = this.cbFlagC.IsChecked.Value;
             UpdateRegisterView();
@@ -411,8 +478,8 @@ namespace GUIEmu6502
         {
             SaveFileDialog sfd = new SaveFileDialog {
                 AddExtension = true,
-                CheckFileExists = true,
                 CheckPathExists = true,
+                OverwritePrompt = true,
                 DefaultExt = MEM_FILE_DEFAULT_EXT,
                 Filter = MEM_FILES_FILTER,
                 Title = SFD_BIN_FILE_TITLE,
@@ -481,7 +548,7 @@ namespace GUIEmu6502
                                 MessageBoxButton.OK,
                                 MessageBoxImage.Error);
             }
-            /* MàJ rapide de l'interface */
+            /* MàJ complète de l'interface */
             Application.Current.Dispatcher.BeginInvoke(
                     DispatcherPriority.Render,
                     uiUpdater,
@@ -544,12 +611,11 @@ namespace GUIEmu6502
         private void CommandBkpts_Executed(object sender,
                                            ExecutedRoutedEventArgs e)
         {
-            MessageBox.Show(this,
-                            "A implanter !",
-                            null,
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
-            // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            BreakpointWindow bw = new BreakpointWindow();
+            bw.Traps = this.debugTraps;
+            bool? ok = bw.ShowDialog();
+            if (ok != true) return;
+            this.debugTraps = bw.Traps;
         }
 
         private void CommandTraceOn_CanExecute(object sender,
@@ -562,6 +628,17 @@ namespace GUIEmu6502
         private void CommandTraceOn_Executed(object sender,
                                              ExecutedRoutedEventArgs e)
         {
+            SaveFileDialog sfd = new SaveFileDialog() {
+                AddExtension = true,
+                CheckPathExists = true,
+                OverwritePrompt = true,
+                DefaultExt = TRACE_FILE_DEFAULT_EXT,
+                Filter = TRACE_FILES_FILTER,
+                Title = SFD_TRACE_FILE_TITLE,
+                ValidateNames = true
+            };
+            if (sfd.ShowDialog() != true) return;
+            string destFilePath = sfd.FileName;
             MessageBox.Show(this,
                             "A implanter !",
                             null,
@@ -594,6 +671,10 @@ namespace GUIEmu6502
                                       DoWorkEventArgs e)
         {
             while (!(this.cpuRunner.CancellationPending)) {
+                if (CheckForTrap()) {
+                    this.cpuRunner.CancelAsync();
+                    break;
+                }
                 this.processor.Step();
                 /* MàJ rapide de l'interface */
                 Application.Current.Dispatcher.BeginInvoke(
