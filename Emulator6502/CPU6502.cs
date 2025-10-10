@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 
 
 namespace Emulator6502
@@ -74,6 +75,12 @@ namespace Emulator6502
         private UnknownOpcodePolicy uoPolicy;
 
 
+        // objet d'écriture dans le fichier de traçage
+        private StreamWriter traceFile;
+        // désassembleur pour le traçage
+        private Disasm6502 traceDisasm;
+
+
         /* ========================== CONSTRUCTEUR ========================== */
 
         /// <summary>
@@ -90,6 +97,8 @@ namespace Emulator6502
             this.nmiLine = this.nmiTrig = false;
             this.irqLine = false;
             this.uoPolicy = UnknownOpcodePolicy.ThrowException;
+            this.traceFile = null;
+            this.traceDisasm = null;
 //            Reset();
         }
 
@@ -858,6 +867,31 @@ namespace Emulator6502
         }
 
 
+        /* ~~ traçage ~~ */
+
+        private void DoTrace()
+        {
+            this.traceFile.WriteLine(
+                    "=> PC=${0:X4}" +
+                    " A=${1:X2} X=${2:X2} Y=${3:X2}" +
+                    " S=${4:X2} P=${5:X2}" +
+                    " (N={6} V={7} 1 B={8} D={9} I={10} Z={11} C={12})",
+                    this.regPC,
+                    this.regA,
+                    this.regX,
+                    this.regY,
+                    this.regS,
+                    this.RegisterP,
+                    (this.flagN ? 1 : 0),
+                    (this.flagV ? 1 : 0),
+                    (this.flagB ? 1 : 0),
+                    (this.flagD ? 1 : 0),
+                    (this.flagI ? 1 : 0),
+                    (this.flagZ ? 1 : 0),
+                    (this.flagC ? 1 : 0) );
+        }
+
+
         /* ======================= MÉTHODES PUBLIQUES ======================= */
 
         /// <summary>
@@ -878,6 +912,11 @@ namespace Emulator6502
             byte hi = ReadMem(RESET_VECTOR + 1);
             // saute au vecteur ainsi lu
             this.regPC = MakeWord(hi, lo);
+            // traçage si besoin est
+            if (this.traceFile != null) {
+                this.traceFile.WriteLine("\n\n*** RESET! ***\n");
+                DoTrace();
+            }
         }
 
         /// <summary>
@@ -913,6 +952,9 @@ namespace Emulator6502
             if (this.nmiTrig) {
                 // NMI : sensible à la transition
                 this.nmiTrig = false;
+                if (this.traceFile != null) {
+                    this.traceFile.WriteLine("*** NMI! ***");
+                }
                 // lance la réponse à l'interruption
                 this.cycles += 2;
                 // enregistre le contexte actuel
@@ -929,6 +971,9 @@ namespace Emulator6502
             } else if (this.irqLine) {
                 // interruption masquable
                 if (!(this.flagI)) {
+                    if (this.traceFile != null) {
+                        this.traceFile.WriteLine("*** IRQ! ***");
+                    }
                     // lance la réponse à l'interruption
                     this.cycles += 2;
                     // enregistre le contexte actuel
@@ -943,6 +988,12 @@ namespace Emulator6502
                     // saute au vecteur ainsi lu
                     this.regPC = MakeWord(hi, lo);
                 }
+            }
+
+            // désassemblage si traçage
+            if (this.traceFile != null) {
+                this.traceFile.Write(
+                        this.traceDisasm.DisassembleInstructionAt(this.regPC));
             }
 
             // lit, décode et exécute le prochain opcode
@@ -1603,6 +1654,11 @@ namespace Emulator6502
                     break;
             }
 
+            // traçage de l'exécution si besoin est
+            if (this.traceFile != null) {
+                DoTrace();
+            }
+
             // comptage des cycles écoulés
             ulong cycEnd = this.cycles;
             return cycEnd - cycBegin;
@@ -1844,6 +1900,33 @@ namespace Emulator6502
         {
             get { return this.uoPolicy; }
             set { this.uoPolicy = value; }
+        }
+
+
+        /// <summary>
+        /// Objet d'écriture dans le fichier de traçage
+        /// à employer pour l'exécution de ce processeur.
+        /// <br/>
+        /// Mettre à <code>null</code> pour ne pas faire de trace.
+        /// </summary>
+        public StreamWriter TraceFileWriter
+        {
+            get { return this.traceFile; }
+            set {
+                if (this.traceFile != null) {
+                    this.traceFile.Flush();
+                }
+                this.traceFile = value;
+                if (this.traceFile != null) {
+                    this.traceDisasm = new Disasm6502(this.memSpace);
+                    this.traceDisasm.CPULevel =
+                            Disasm6502.ProcessorLevel.NMOS6502;
+                    this.traceDisasm.InvalidOpcodePolicy =
+                            this.uoPolicy;
+                } else {
+                    this.traceDisasm = null;
+                }
+            }
         }
 
     }

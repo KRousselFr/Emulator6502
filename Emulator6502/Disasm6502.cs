@@ -192,6 +192,7 @@ namespace Emulator6502
             return String.Format("${0:X2}, Y", lo);
         }
 
+        /* mode d'adressage page-zéro indirect : INSTR ($xx)  */
         private string AddrModeZeroPageIndirect()
         {
             byte lo = ReadMem(this.regPC);

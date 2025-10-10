@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 
@@ -157,6 +157,8 @@ namespace GUIEmu6502
             }
         }
 
+
+        /* ~~ Gestion des points d'arrêt ~~ */
 
         private bool CheckForTrap()
         {
@@ -622,7 +624,8 @@ namespace GUIEmu6502
                                                CanExecuteRoutedEventArgs e)
         {
             /* commande disponible HORS exécution en tâche de fond */
-            e.CanExecute = !(this.cpuRunner.IsBusy);
+            e.CanExecute = ( !(this.cpuRunner.IsBusy) &&
+                              (this.processor.TraceFileWriter == null) );
         }
 
         private void CommandTraceOn_Executed(object sender,
@@ -638,31 +641,22 @@ namespace GUIEmu6502
                 ValidateNames = true
             };
             if (sfd.ShowDialog() != true) return;
-            string destFilePath = sfd.FileName;
-            MessageBox.Show(this,
-                            "A implanter !",
-                            null,
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
-            // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            this.processor.TraceFileWriter =
+                    File.CreateText(sfd.FileName);
         }
 
         private void CommandTraceOff_CanExecute(object sender,
                                                 CanExecuteRoutedEventArgs e)
         {
             /* commande disponible HORS exécution en tâche de fond */
-            e.CanExecute = !(this.cpuRunner.IsBusy);
+            e.CanExecute = ( !(this.cpuRunner.IsBusy) &&
+                              (this.processor.TraceFileWriter != null) );
         }
 
         private void CommandTraceOff_Executed(object sender,
                                               ExecutedRoutedEventArgs e)
         {
-            MessageBox.Show(this,
-                            "A implanter !",
-                            null,
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
-            // TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            this.processor.TraceFileWriter = null;
         }
 
         /* ~~ Exécution du processeur en tâche de fond ~~ */
